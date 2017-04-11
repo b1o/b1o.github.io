@@ -1,0 +1,11 @@
+{
+  "vendor": {
+    "js": "/b1o.github.io/vendor.bundle.js"
+  },
+  "main": {
+    "js": "/b1o.github.io/main.bundle.js"
+  },
+  "polyfills": {
+    "js": "/b1o.github.io/polyfills.bundle.js"
+  }
+}
