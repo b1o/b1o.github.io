@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewInit, EventEmitter } from '@angular/core';
 import { MdlSliderComponent } from '@angular-mdl/core';
 
 @Component({
@@ -7,20 +7,20 @@ import { MdlSliderComponent } from '@angular-mdl/core';
 })
 
 export class AudioComponent implements AfterViewInit {
-    public progress: number;
+    public progress: string = '0';
     public duration;
     public currentTime;
     @ViewChild('board') public canvas;
     @ViewChild('slider') public slider: MdlSliderComponent;
-    public bufferLength = 2048;
+    public bufferLength = 512;
     public barRatio = 2.5;
     public barCount;
     public barHeightRatio = 2;
     public audioSrc;
     public useMic = false;
     public fullscreen = true;
-
-    private canvasContext: CanvasRenderingContext2D; ;
+    public file;
+    private canvasContext: CanvasRenderingContext2D;;
     private audio: HTMLAudioElement;
     private audioContext: AudioContext = new AudioContext();
     private analyzer: AnalyserNode = this.audioContext.createAnalyser();
@@ -30,19 +30,27 @@ export class AudioComponent implements AfterViewInit {
     private previousSliderValue;
     private source;
     private requestId;
-    private proportion = (5 / this.bufferLength);
+    private proportion = (300 / this.bufferLength);
     private mic;
+    private frameFinished = new EventEmitter();
 
     constructor() {
     }
 
     public play() {
         this.audio.play();
-
+        requestAnimationFrame(this.draw.bind(this))
     }
 
     public pause() {
         this.audio.pause();
+        this.frameFinished.subscribe(
+            () => {
+                cancelAnimationFrame(this.requestId);
+
+            }
+        )
+
     }
 
     public onSliderChange(value) {
@@ -53,52 +61,49 @@ export class AudioComponent implements AfterViewInit {
         console.log(this.bufferLength);
     }
 
+    public fileChanged(event) {
+        let fileSrc = URL.createObjectURL(event.target.files[0]);
+        this.audio.src = fileSrc;
+    }
+
     public changeInput() {
-
+        cancelAnimationFrame(this.requestId);
+        this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
         if (this.useMic) {
-
-            this.source.disconnect();
-            this.audio = new Audio();
-            this.audio.src = '../../../assets/music.mp3';
             this.mic.getTracks()[0].stop();
-            this.audio.addEventListener('loadedmetadata', () => {
-                this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
-                                this.duration = (this.audio.duration / 60).toFixed(2);
-                                                      this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
-                this.duration = (this.audio.duration / 60).toFixed(2);
-                this.analyzer = this.audioContext.createAnalyser();
-                this.source = this.audioContext.createMediaElementSource(this.audio);
-                this.source.connect(this.analyzer);
-                this.analyzer.connect(this.audioContext.destination);
-                this.analyzer.fftSize = this.bufferLength;
-                this.analyzer.smoothingTimeConstant = 0.5;
-                this.useMic = false;
-                this.draw();
-            });
-        } else {
-            cancelAnimationFrame(this.requestId);
-            this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
             this.source.disconnect();
+            this.analyzer.disconnect();
+            this.source = null;
+            this.source = this.audioContext.createMediaElementSource(this.audio);
+            this.source.connect(this.analyzer);
+            this.analyzer.connect(this.audioContext.destination);
+            this.analyzer.fftSize = this.bufferLength;
+            this.analyzer.smoothingTimeConstant = 0.5;
+            this.useMic = false;
+        } else {
+            this.source.disconnect();
+            this.audio.pause();
+            this.analyzer.disconnect();
             navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-                this.audio = new Audio();
                 this.mic = stream;
                 this.source = this.audioContext.createMediaStreamSource(stream);
                 this.source.connect(this.analyzer);
-                this.analyzer.disconnect();
+                this.bufferLength = 2048;
+                this.dataArray = new Uint8Array(2048)
                 this.analyzer.fftSize = this.bufferLength;
-                this.draw();
                 this.useMic = true;
+                this.draw()
             });
         }
     }
 
     public ngAfterViewInit() {
-          this.canvas.nativeElement.width = document.body.clientWidth;
-          this.canvas.nativeElement.height = document.body.clientHeight;
-          this.canvasContext = this.canvas.nativeElement.getContext('2d');
-          this.WIDTH = this.canvas.nativeElement.width;
-          this.HEIGHT = this.canvas.nativeElement.height;
-          if (this.useMic) {
+        this.canvas.nativeElement.width = window.innerWidth;
+        this.canvas.nativeElement.height = window.innerHeight;
+        this.canvasContext = this.canvas.nativeElement.getContext('2d');
+        this.WIDTH = this.canvas.nativeElement.width;
+        this.HEIGHT = this.canvas.nativeElement.height;
+        if (this.useMic) {
             navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
                 this.source = this.audioContext.createMediaStreamSource(stream);
                 this.source.connect(this.analyzer);
@@ -107,25 +112,24 @@ export class AudioComponent implements AfterViewInit {
 
             return;
         }
-          this.audio = new Audio();
-          this.audio.src = '../../../assets/music.mp3';
-          this.audio.addEventListener('loadedmetadata', () => {
+        this.audio = new Audio();
+        this.source = this.audioContext.createMediaElementSource(this.audio);
+        this.source.connect(this.analyzer);
+        this.analyzer.connect(this.audioContext.destination);
+        this.analyzer.fftSize = this.bufferLength;
+        this.analyzer.smoothingTimeConstant = 0.5;
+        this.audio.addEventListener('loadedmetadata', (data) => {
+            console.log(data)
             this.duration = (this.audio.duration / 60).toFixed(2);
-
-            this.source = this.audioContext.createMediaElementSource(this.audio);
-            this.source.connect(this.analyzer);
-            this.analyzer.connect(this.audioContext.destination);
-            this.analyzer.fftSize = this.bufferLength;
-            this.analyzer.smoothingTimeConstant = 0.5;
-            this.draw()
-
         });
-          this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+        this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
 
     }
 
     public draw() {
         let self = this;
+        this.currentTime = (this.audio.currentTime / 60).toFixed(2);
+        this.progress = (((this.audio.currentTime / 60) / this.duration) * 100).toFixed(2);
         this.requestId = requestAnimationFrame(this.draw.bind(this));
         this.canvasContext.clearRect(0, 0, this.WIDTH, this.HEIGHT);
 
@@ -136,19 +140,23 @@ export class AudioComponent implements AfterViewInit {
             let barWidth = (this.WIDTH / this.bufferLength) * this.barRatio;
             this.barCount = Math.floor(this.WIDTH / barWidth);
             let barHeight;
-
+            let finished = true;
             for (let i = 0; i < this.bufferLength; i += 2) {
-                let barHeight = Math.abs(this.dataArray[i] / this.barHeightRatio);
+                if (this.dataArray[i] > 0) {
+                    finished = false;
+                    let barHeight = this.dataArray[i];
 
-                this.canvasContext.beginPath();
-
-                this.canvasContext.strokeStyle = `rgb(${barHeight + 100}, 50, 50)`;
-                this.canvasContext.lineWidth = this.proportion * i ; 
-                this.canvasContext.arc(this.WIDTH / 2, this.HEIGHT / 2, (this.dataArray[i]), 0, 2 * Math.PI);
-                this.canvasContext.stroke();
-                // x += barWidth + 1;
+                    this.canvasContext.beginPath();
+                    this.canvasContext.strokeStyle = `rgb(${(barHeight * 2) - 1}, ${255 - barHeight}, 0)`;
+                    this.canvasContext.lineWidth = 2;
+                    this.canvasContext.arc(this.WIDTH / 2, this.HEIGHT / 2, (this.dataArray[i]) * 2, 0, 2 * Math.PI);
+                    this.canvasContext.stroke();
+                }
             }
 
+            if (finished) {
+                this.frameFinished.emit()
+            }
         } else {
             this.canvasContext.lineWidth = 2;
             this.canvasContext.strokeStyle = 'rgb(0, 0, 0)';
@@ -156,9 +164,8 @@ export class AudioComponent implements AfterViewInit {
 
             this.canvasContext.beginPath();
 
-            let sliceWidth = this.WIDTH * 1.0 / this.bufferLength;
+            let sliceWidth = this.WIDTH / this.bufferLength;
             let x = 0;
-
             for (let i = 0; i < this.bufferLength; i++) {
 
                 let v = this.dataArray[i] / 128.0;
@@ -175,7 +182,7 @@ export class AudioComponent implements AfterViewInit {
 
             this.canvasContext.lineTo(this.canvas.nativeElement.width, this.canvas.nativeElement.height / 2);
             this.canvasContext.stroke();
-        ;
-    }
 
+        }
+    }
 }

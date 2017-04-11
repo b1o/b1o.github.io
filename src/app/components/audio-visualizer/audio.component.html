@@ -16,12 +16,13 @@
     <button mdl-button mdl-ripple mdl-button-type="raised" (click)="fullscreen = !fullscreen">Full screen</button>
 
 <div>
-    <mdl-textfield *ngIf="audio" type="text" label="music link" floating-label [(ngModel)]="audio.src"></mdl-textfield>
+    <mdl-textfield *ngIf="audio" type="file" label="music link" floating-label [(ngModel)]="file" (change)="fileChanged($event)"></mdl-textfield>
   
 </div>
     <div class="duration">
       {{currentTime}}/{{duration}}
     </div>
+    {{this.progress}}%
     <mdl-progress [progress]="progress"></mdl-progress>
     <button (click)="play()" mdl-button mdl-ripple mdl-button-type="raised">Play</button>
     <button (click)="pause()" mdl-button mdl-ripple mdl-button-type="raised">Pause</button>
